@@ -1,7 +1,9 @@
 # file: ~/.gitignore_global
 .DS_Store
 .idea
+*.iml
 
 # Distribution / packaging
 target/
 outputs/
+output/

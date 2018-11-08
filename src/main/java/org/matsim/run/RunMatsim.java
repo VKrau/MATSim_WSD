@@ -32,7 +32,7 @@ abstract public class RunMatsim {
 	public static void main(String[] args) {
 		Config config;
 		if (args.length == 0 || args[0] == "") {
-			config = ConfigUtils.loadConfig("config.xml");
+			config = ConfigUtils.loadConfig("scenarios/equil/config.xml");
 		} else {
 			config = ConfigUtils.loadConfig(args[0]);
 		}
