@@ -9,12 +9,14 @@ import org.matsim.api.core.v01.population.*;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.operation.TransformException;
+
 
 import java.io.*;
 import java.util.*;
@@ -26,8 +28,11 @@ public class GenerateFromTrips {
     private static boolean createAdditionalAgents = true;
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static boolean generateOnLinks = true;
-    private static int initialSearchDistanceOfNearestNodes = 50000;
-    private static int searchExpansionStep = 10000;
+    //Изначальная дистанция поиска
+    private static int initialSearchDistanceOfNearestNodes = 500;
+    //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
+    private static int searchExpansionStep = 100;
+    //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 10;
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
     private static HashMap<String, Agent> mapOfAgents = new HashMap<>();
@@ -94,6 +99,7 @@ public class GenerateFromTrips {
                     activity = getActivity(scenario, populationFactory, transformedCoord, activityType, isMetro);
                     activity.setEndTime(trip.startTime);
                     plan.addActivity(activity);
+                    agent.addActivity(activity);
                     if (!isLastActivity){
                         addLegToPlan(populationFactory, plan);
                     } else if ((passenger.tripList.size() > 1) && tripIndex > 1){
@@ -105,6 +111,7 @@ public class GenerateFromTrips {
                         addLegToPlan(populationFactory, plan);
 
                         plan.addActivity(lastActivity);
+                        agent.addActivity(lastActivity);
 
                     } else {
                             Stop endStop;
@@ -115,7 +122,8 @@ public class GenerateFromTrips {
                                 int randomStopIndex = randomStopIndexDouble.intValue();
                                 endStop = (Stop) stopList.get(randomStopIndex);
                             }
-                            addHomeActivityAtEndStop(ct, populationFactory, plan, endStop, scenario);
+                            Activity homeActivity = addHomeActivityAtEndStop(ct, populationFactory, plan, endStop, scenario);
+                            agent.addActivity(homeActivity);
                     }
                 }
             }
@@ -142,8 +150,6 @@ public class GenerateFromTrips {
             for(HashSet<Agent> createdAgents : mapOfCreatedAgents.values()) {
                 for(Agent created_agent : createdAgents) {
                     Person create_person = populationFactory.createPerson(Id.create(created_agent.getAgentId(), Person.class));
-                    System.out.println(created_agent.getAgentId());
-                    System.out.println(created_agent.getPlan());
                     create_person.addPlan(created_agent.getPlan());
                     population.addPerson(create_person);
                 }
@@ -158,16 +164,45 @@ public class GenerateFromTrips {
 
     private static HashMap<Id<Link>, HashSet<Agent>> increasePopulationFromStatistics(Scenario scenario, CoordinateTransformation ct) {
         HashMap<Id<Link>, HashSet<Agent>> mapOfCreatedAgents = readPopulationStatistics(filePopulationStatistics, scenario, ct);
+        PopulationFactory populationFactory = scenario.getPopulation().getFactory();
         Random r = new Random();
+        int inc_set = 0;
         for(HashSet<Agent> setOfCreatedAgents:mapOfCreatedAgents.values()) {
+            inc_set++;
+            System.out.println("-------------------------------------------------------");
+            System.out.println(inc_set+" sets of created agents from " + mapOfCreatedAgents.size() +" were processed");
+            System.out.println("HOME COORD OF SET: "+setOfCreatedAgents.stream().findFirst().get().getHomeLinkCoord());
+            System.out.println("-------------------------------------------------------");
+
             List<Agent> agentsFoundNearby = searchNearbyAgents(scenario, setOfCreatedAgents.stream().findFirst().get().getHomeLinkCoord()).stream().collect(Collectors.toList());
+
             for(Agent agent:setOfCreatedAgents) {
-                Plan random_plan = agentsFoundNearby.get(r.nextInt(agentsFoundNearby.size()-1)).getPlan();
-                if(random_plan!=null){
-                    agent.addPlan(random_plan);
+                List<Activity> randomListOfActivities = agentsFoundNearby.get(r.nextInt(agentsFoundNearby.size()-1)).getListOfActivities();
+                //для каждого объекта создаем план
+                Plan plan = populationFactory.createPlan();
+                //создаем домашнюю активность на основе первой активности рэндомного агента
+                Activity firstActivity = PopulationUtils.createActivity(randomListOfActivities.get(0));
+                //меняем у созданной первой активности homeLinkId
+                firstActivity.setLinkId(agent.getHomeLinkId());
+                //добавляем в план
+                plan.addActivity(firstActivity);
+                //в цикле без изменений копируем промежуточные активности (между первой и последней активностью)
+                for (int i = 1; i < randomListOfActivities.size()-1; i++) {
+                    plan.addActivity(PopulationUtils.createActivity(randomListOfActivities.get(i)));
+                }
+                //создаем последнюю домашнюю активность на основе последней активности рэндомного агента
+                Activity lastActivity = PopulationUtils.createActivity(randomListOfActivities.get(randomListOfActivities.size()-1));
+                //меняем у созданной последней активности homeLinkId
+                lastActivity.setLinkId(agent.getHomeLinkId());
+                //добавляем в план
+                plan.addActivity(lastActivity);
+                //записываем объекту созданный план
+                if(plan!=null) {
+                    agent.addPlan(plan);
                 } else {
                     System.out.println("Something went wrong! The requested agent has no plan!");
                 }
+
             }
         }
         return mapOfCreatedAgents;
@@ -175,29 +210,32 @@ public class GenerateFromTrips {
 
     private static HashSet<Agent> searchNearbyAgents(Scenario scenario, Coord coord) {
         HashSet<Agent> SetOfFoundAgents = new HashSet<>();
-        boolean nearestAgentsFound = false;
         int distance = initialSearchDistanceOfNearestNodes;
-        while (!nearestAgentsFound) {
+        boolean nearestAgentsFound = false;
+        while(!nearestAgentsFound) {
             List<Node> coll = NetworkUtils.getNearestNodes(scenario.getNetwork(), coord, distance).stream()
-                    .sorted(Comparator.comparingDouble(a -> CoordUtils.calcEuclideanDistance(a.getCoord(), coord))).collect(Collectors.toList());
-            for (Node node : coll) {
-                for (Id<Link> link : NetworkUtils.getIncidentLinks(node).keySet()) {
-                    if (mapOfAgentsOnLinks.containsKey(link)) {
-                        for (Agent agent : mapOfAgentsOnLinks.get(link)) {
+                    .sorted(Comparator.comparingDouble(a -> NetworkUtils.getEuclideanDistance(a.getCoord(), coord))).collect(Collectors.toList());
+            for(Node node : coll) {
+                for(Id<Link> linkId : NetworkUtils.getIncidentLinks(node).keySet()) {
+                    if(mapOfAgentsOnLinks.containsKey(linkId)) {
+                        for(Agent agent : mapOfAgentsOnLinks.get(linkId)) {
                             SetOfFoundAgents.add(agent);
-                            if (SetOfFoundAgents.size() >= numberOfAgentsForSelectionPlan) {
+                            if(SetOfFoundAgents.size() >= numberOfAgentsForSelectionPlan) {
+                                //System.out.println("Found 10 agents at a distance "+(distance/1000)+" m.");
                                 return SetOfFoundAgents;
                             } else {
                                 distance +=searchExpansionStep;
+                                continue;
                             }
                         }
                     } else {
+                        distance +=searchExpansionStep;
                         continue;
                     }
                 }
             }
         }
-        return SetOfFoundAgents;
+        return null;
     }
 
 
@@ -223,7 +261,7 @@ public class GenerateFromTrips {
             mapOfAgentsOnLinks.get(ag.getHomeLinkId()).add(ag);
     }
 
-    private static void addHomeActivityAtEndStop(CoordinateTransformation ct, PopulationFactory populationFactory, Plan plan, Stop endStop, Scenario scenario) {
+    private static Activity addHomeActivityAtEndStop(CoordinateTransformation ct, PopulationFactory populationFactory, Plan plan, Stop endStop, Scenario scenario) {
         Coord endStopCoord = endStop.getCoord();
         boolean isMetro = endStop.modes.contains("metro");
         Coord transformedEndStopCoord = ct.transform(endStopCoord);
@@ -231,6 +269,7 @@ public class GenerateFromTrips {
         lastActivity.setEndTime(25*3600);
         addLegToPlan(populationFactory, plan);
         plan.addActivity(lastActivity);
+        return lastActivity;
     }
 
     private static void deleteOrFixFaultyPlans(Population population) {
