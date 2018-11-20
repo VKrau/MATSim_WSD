@@ -31,15 +31,15 @@ public class GenerateFromTrips {
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static boolean generateOnLinks = true;
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 500;
+    private static int initialSearchDistanceOfNearestNodes = 1000;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 100;
+    private static int searchExpansionStep = 500;
     //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 10;
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
-    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final1.csv";
+    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
 
 
     public static void main(String[] args) throws FactoryException, TransformException {
@@ -47,15 +47,15 @@ public class GenerateFromTrips {
         String outputCRS = "EPSG:32635";
         CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(inputCRS, outputCRS);
         String fileStations = "input/inputForPlans/tripsFromValidations/stops.csv";
-        String fileTrips = "input/inputForPlans/tripsFromValidations/TRIPS1.csv";
+        String fileTrips = "input/inputForPlans/tripsFromValidations/TRIPS.csv";
 
         Map stopMap = new HashMap();
         List stopList = new ArrayList<Stop>();
 
         Map<String, Passenger> passengerMap = new HashMap();
-
         readStations(fileStations, stopMap, stopList);
         readTrips(fileTrips, passengerMap);
+
         createPopulation(passengerMap, ct, stopMap, stopList);
     }
 
@@ -243,17 +243,12 @@ public class GenerateFromTrips {
                             if(SetOfFoundAgents.size() >= numberOfAgentsForSelectionPlan) {
                                 //System.out.println("Found 10 agents at a distance "+(distance/1000)+" m.");
                                 return SetOfFoundAgents;
-                            } else {
-                                distance +=searchExpansionStep;
-                                continue;
                             }
                         }
-                    } else {
-                        distance +=searchExpansionStep;
-                        continue;
                     }
                 }
             }
+            distance += searchExpansionStep;
         }
     }
 
@@ -384,6 +379,9 @@ public class GenerateFromTrips {
 
     private static void readTrips(String inputTrips, Map passengerMap) {
         try {
+            System.out.println("-------------------------------------------------------");
+            System.out.println("STARTING TO READ TRIPS");
+            System.out.println("-------------------------------------------------------");
             BufferedReader bufferedReader = new BufferedReader(new FileReader(inputTrips));
             String line = null;
             int lineNumber = 0;
@@ -482,10 +480,14 @@ public class GenerateFromTrips {
 
     private static HashMap<Id<Link>, HashSet<Agent>> readPopulationStatistics(String filePopulationStatistics, Scenario scenario, CoordinateTransformation ct) {
         HashMap<Id<Link>, HashSet<Agent>> mapOfCreatedAgentsOnLinks = new HashMap<>();
+        int numOfAgents = 0;
         try {
+            System.out.println("-------------------------------------------------------");
+            System.out.println("STARTING TO READ POPULATION FROM STATISTICS");
+            System.out.println("-------------------------------------------------------");
+
             BufferedReader bufferedReader = new BufferedReader(new FileReader(filePopulationStatistics));
             String line;
-            int numOfAgents = 0;
             while((line = bufferedReader.readLine()) != null) {
                 if (line.contains("num_of_peoples")) continue;
                 String[] items = line.split(",");
@@ -519,11 +521,15 @@ public class GenerateFromTrips {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        System.out.println("After read: "+numOfAgents);
         return mapOfCreatedAgentsOnLinks;
     }
 
     private static void readStations(String fileStations, Map stopMap, List stopList) {
         try {
+            System.out.println("-------------------------------------------------------");
+            System.out.println("STARTING TO READ STATIONS");
+            System.out.println("-------------------------------------------------------");
             BufferedReader bufferedReader = new BufferedReader(new FileReader(fileStations));
             String line = null;
             int lineNumber = 0;
