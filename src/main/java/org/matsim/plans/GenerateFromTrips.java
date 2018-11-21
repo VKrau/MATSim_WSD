@@ -31,12 +31,12 @@ public class GenerateFromTrips {
     private static boolean generateOnLinks = true;
     private static boolean recordWithValidationPopulation = true;
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 1000;
+    private static int initialSearchDistanceOfNearestNodes = 2000;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 500;
+    private static int searchExpansionStep = 1000;
     //Сколько ближайших агентов необходимо найти
-    private static int numberOfAgentsForSelectionPlan = 10;
-    private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
+    private static int numberOfAgentsForSelectionPlan = 100;
+    private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_before_6.xml";
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
     private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";

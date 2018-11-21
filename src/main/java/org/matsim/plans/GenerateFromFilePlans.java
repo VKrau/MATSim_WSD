@@ -21,7 +21,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class GenerateFromFilePlans {
-    private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
+    private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_before_6.xml";
     private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
     private static String masterPlanFile = "input/masterPlans.xml.gz";
     private static boolean recordWithValidationPopulation = false;
