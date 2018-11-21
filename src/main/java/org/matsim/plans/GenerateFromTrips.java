@@ -29,6 +29,7 @@ public class GenerateFromTrips {
     private static boolean createAdditionalAgents = true;
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static boolean generateOnLinks = true;
+    private static boolean recordWithValidationPopulation = true;
     //Изначальная дистанция поиска
     private static int initialSearchDistanceOfNearestNodes = 1000;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
@@ -147,7 +148,19 @@ public class GenerateFromTrips {
             addHomeRegistration(agent_);
         }
 
+        File outputDir = new File("output");
+        if(!outputDir.exists()) {
+            outputDir.mkdir();
+        }
+        PopulationWriter populationWriter = new PopulationWriter(population);
+        populationWriter.writeV5("output/PopulationOnLinks.xml.gz");
+
+
         if (createAdditionalAgents){
+            if(!recordWithValidationPopulation) {
+                population = ScenarioUtils.loadScenario(config).getPopulation();
+            }
+            
             HashMap<Id<Link>, HashSet<Agent>> mapOfCreatedAgentsOnLinks = increasePopulationFromStatistics(scenario, ct);
             for(HashSet<Agent> createdAgents : mapOfCreatedAgentsOnLinks.values()) {
                 for(Agent created_agent : createdAgents) {
@@ -161,8 +174,9 @@ public class GenerateFromTrips {
 
         deleteOrFixFaultyPlans(population);
 
-        PopulationWriter populationWriter = new PopulationWriter(population);
-        populationWriter.writeV5("output/PopulationOnLinks.xml.gz");
+
+        System.out.println("Total number of agents: "+population.getPersons().size());
+        populationWriter.writeV5("output/plans_with_created_agents(nearest_"+numberOfAgentsForSelectionPlan+").xml.gz");
     }
 
     private static HashMap<Id<Link>, HashSet<Agent>> increasePopulationFromStatistics(Scenario scenario, CoordinateTransformation ct) {

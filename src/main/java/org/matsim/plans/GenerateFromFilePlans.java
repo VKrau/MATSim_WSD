@@ -22,24 +22,21 @@ import java.util.stream.Collectors;
 
 public class GenerateFromFilePlans {
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
-    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
+    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final1.csv";
     private static String masterPlanFile = "input/masterPlans.xml.gz";
+    private static boolean recordWithValidationPopulation = true;
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 100;
+    private static int initialSearchDistanceOfNearestNodes = 10000;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 50;
+    private static int searchExpansionStep = 5000;
     //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 100;
 
 
     public static void main(String[] args) {
-        File outputDir = new File("output");
-        if(!outputDir.exists()) {
-            outputDir.mkdir();
-        }
         String inputCRS = "EPSG:4326"; // WGS84
         String outputCRS = "EPSG:32635";
         CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(inputCRS, outputCRS);
@@ -64,6 +61,9 @@ public class GenerateFromFilePlans {
             }
             addHomeRegistration(agent);
         }
+            if(!recordWithValidationPopulation) {
+                population = ScenarioUtils.loadScenario(config).getPopulation();
+            }
 
             HashMap<Id<Link>, HashSet<Agent>> mapOfCreatedAgentsOnLinks = increasePopulationFromStatistics(scenario, ct);
             for(HashSet<Agent> createdAgents : mapOfCreatedAgentsOnLinks.values()) {
@@ -77,7 +77,12 @@ public class GenerateFromFilePlans {
 
         deleteOrFixFaultyPlans(population);
 
+        File outputDir = new File("output");
+        if(!outputDir.exists()) {
+            outputDir.mkdir();
+        }
         PopulationWriter populationWriter = new PopulationWriter(population);
+        System.out.println("Total number of agents: "+population.getPersons().size());
         populationWriter.writeV5("output/plans_with_created_agents(nearest_"+numberOfAgentsForSelectionPlan+").xml.gz");
     }
 
