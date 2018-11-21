@@ -16,28 +16,30 @@ import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class GenerateFromFilePlans {
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
     private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
+    private static String masterPlanFile = "input/masterPlans.xml.gz";
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 1000;
+    private static int initialSearchDistanceOfNearestNodes = 100;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 500;
+    private static int searchExpansionStep = 50;
     //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 100;
 
 
     public static void main(String[] args) {
+        File outputDir = new File("output");
+        if(!outputDir.exists()) {
+            outputDir.mkdir();
+        }
         String inputCRS = "EPSG:4326"; // WGS84
         String outputCRS = "EPSG:32635";
         CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(inputCRS, outputCRS);
@@ -48,7 +50,7 @@ public class GenerateFromFilePlans {
         PopulationFactory populationFactory = population.getFactory();
 
         PopulationReader populationReader = new PopulationReader(scenario);
-        populationReader.readFile("input/PopulationOnLinks.xml.gz");
+        populationReader.readFile(masterPlanFile);
 
         for(Person person : scenario.getPopulation().getPersons().values()) {
             String name = person.getId().toString();
@@ -75,7 +77,8 @@ public class GenerateFromFilePlans {
 
         deleteOrFixFaultyPlans(population);
 
-
+        PopulationWriter populationWriter = new PopulationWriter(population);
+        populationWriter.writeV5("output/plans_with_created_agents(nearest_"+numberOfAgentsForSelectionPlan+").xml.gz");
     }
 
     private static void addHomeRegistration(Agent ag) {
