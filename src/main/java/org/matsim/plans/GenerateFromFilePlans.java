@@ -22,16 +22,16 @@ import java.util.stream.Collectors;
 
 public class GenerateFromFilePlans {
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_after_5.xml";
-    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final1.csv";
+    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
     private static String masterPlanFile = "input/masterPlans.xml.gz";
-    private static boolean recordWithValidationPopulation = true;
+    private static boolean recordWithValidationPopulation = false;
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 10000;
+    private static int initialSearchDistanceOfNearestNodes = 3000;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 5000;
+    private static int searchExpansionStep = 1000;
     //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 100;
 

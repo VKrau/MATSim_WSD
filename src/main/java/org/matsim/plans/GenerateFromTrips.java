@@ -160,7 +160,7 @@ public class GenerateFromTrips {
             if(!recordWithValidationPopulation) {
                 population = ScenarioUtils.loadScenario(config).getPopulation();
             }
-            
+
             HashMap<Id<Link>, HashSet<Agent>> mapOfCreatedAgentsOnLinks = increasePopulationFromStatistics(scenario, ct);
             for(HashSet<Agent> createdAgents : mapOfCreatedAgentsOnLinks.values()) {
                 for(Agent created_agent : createdAgents) {
