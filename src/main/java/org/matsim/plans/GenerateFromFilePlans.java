@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class GenerateFromFilePlans {
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_before_6.xml";
     private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
-    private static String masterPlanFile = "input/masterPlans.xml.gz";
+    private static String masterPlanFile = "input/network_spb_zsd_newcapasity_before_6/masterPlan.xml.gz";
     private static boolean recordWithValidationPopulation = false;
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();

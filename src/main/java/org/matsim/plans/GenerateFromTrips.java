@@ -39,7 +39,7 @@ public class GenerateFromTrips {
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_before_6.xml";
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
-    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
+    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final1.csv";
 
 
     public static void main(String[] args) throws FactoryException, TransformException {
@@ -47,7 +47,7 @@ public class GenerateFromTrips {
         String outputCRS = "EPSG:32635";
         CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(inputCRS, outputCRS);
         String fileStations = "input/inputForPlans/tripsFromValidations/stops.csv";
-        String fileTrips = "input/inputForPlans/tripsFromValidations/TRIPS.csv";
+        String fileTrips = "input/inputForPlans/tripsFromValidations/TRIPS1.csv";
 
         Map stopMap = new HashMap();
         List stopList = new ArrayList<Stop>();
@@ -69,9 +69,11 @@ public class GenerateFromTrips {
         Population population = scenario.getPopulation();
         PopulationFactory populationFactory = population.getFactory();
         Iterator iterator = passengerMap.values().iterator();
-        int abc = 0;
+        int progress = 0;
         Agent agent = null;
         while (iterator.hasNext()){
+            progress++;
+            System.out.println("Processed "+progress+" of "+passengerMap.values().size());
             Passenger passenger = (Passenger) iterator.next();
             Person person = populationFactory.createPerson(Id.createPersonId(passenger.getPassengerId()));
             Plan plan = populationFactory.createPlan();
@@ -174,7 +176,7 @@ public class GenerateFromTrips {
 
         deleteOrFixFaultyPlans(population);
 
-
+        populationWriter = new PopulationWriter(population);
         System.out.println("Total number of agents: "+population.getPersons().size());
         populationWriter.writeV5("output/plans_with_created_agents(nearest_"+numberOfAgentsForSelectionPlan+").xml.gz");
     }
