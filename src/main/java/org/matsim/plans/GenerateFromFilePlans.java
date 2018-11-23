@@ -4,6 +4,7 @@ import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
+import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.core.config.Config;
@@ -23,15 +24,17 @@ import java.util.stream.Collectors;
 public class GenerateFromFilePlans {
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_before_6.xml";
     private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
-    private static String masterPlanFile = "input/network_spb_zsd_newcapasity_before_6/masterPlan.xml.gz";
+    //private static String masterPlanFile = "input/fixedPopulationNoFaultyPlans.xml.gz";
+    private static String masterPlanFile = "output/PopulationOnLinks.xml.gz";
+    private static boolean generateOnLinks = false;
     private static boolean recordWithValidationPopulation = false;
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 3000;
+    private static int initialSearchDistanceOfNearestNodes = 100;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 1000;
+    private static int searchExpansionStep = 50;
     //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 100;
 
@@ -54,8 +57,13 @@ public class GenerateFromFilePlans {
             Agent agent = new Agent(name);
             mapOfAllAgents.put(name, agent);
             agent.addPlan(person.getSelectedPlan());
-            Id<Link> homeLinkId= PopulationUtils.getFirstActivity(person.getSelectedPlan()).getLinkId();
-            agent.addHome(homeLinkId, scenario.getNetwork().getLinks().get(homeLinkId).getCoord());
+            if(generateOnLinks) {
+                Id<Link> homeLinkId = PopulationUtils.getFirstActivity(person.getSelectedPlan()).getLinkId();
+                agent.addHome(homeLinkId, scenario.getNetwork().getLinks().get(homeLinkId).getCoord());
+            } else {
+                Coord homeCoord = PopulationUtils.getFirstActivity(person.getSelectedPlan()).getCoord();
+                agent.addHome(NetworkUtils.getNearestLink(scenario.getNetwork(), homeCoord).getId(), homeCoord);
+            }
             for(Activity activity:PopulationUtils.getActivities(person.getSelectedPlan(), null)) {
                 agent.addActivity(activity);
             }
@@ -131,10 +139,9 @@ public class GenerateFromFilePlans {
                     Activity intermediateActivity = PopulationUtils.createActivity(randomListOfActivities.get(i));
                     agent.addActivity(intermediateActivity);
                     plan.addActivity(intermediateActivity);
+                    //добавляем лег для промежуточных активностей
+                    plan.addLeg(randomListOfLegs.get(0));
                 }
-
-                //добавляем лег для промежуточных активностей
-                plan.addLeg(randomListOfLegs.get(0));
                 //создаем последнюю домашнюю активность на основе последней активности рэндомного агента
                 Activity lastActivity = PopulationUtils.createActivity(randomListOfActivities.get(randomListOfActivities.size()-1));
                 //меняем у созданной последней активности homeLinkId

@@ -15,8 +15,6 @@ import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.operation.TransformException;
 
 
 import java.io.*;
@@ -28,26 +26,26 @@ public class GenerateFromTrips {
     private static boolean glueTripsTogether = true;
     private static boolean createAdditionalAgents = true;
     private static HashMap<Id<Link>, HashSet<Agent>> mapOfAgentsOnLinks = new HashMap<>();
-    private static boolean generateOnLinks = true;
-    private static boolean recordWithValidationPopulation = true;
+    private static boolean generateOnLinks = false;
+    private static boolean recordWithValidationPopulation = false;
     //Изначальная дистанция поиска
-    private static int initialSearchDistanceOfNearestNodes = 2000;
+    private static int initialSearchDistanceOfNearestNodes = 200;
     //Если необходимое количество агентов не найдено, то шаг увеличения дистанции
-    private static int searchExpansionStep = 1000;
+    private static int searchExpansionStep = 100;
     //Сколько ближайших агентов необходимо найти
     private static int numberOfAgentsForSelectionPlan = 100;
     private static String networkInputFile = "scenarios/zsd/network_spb_zsd_newcapasity_before_6.xml";
     private static HashMap<String, Agent> mapOfAllAgents = new HashMap<>();
     private static HashMap<String, Agent> mapOfCreatedAgents = new HashMap<>();
-    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final1.csv";
+    private static String filePopulationStatistics = "input/inputForPlans/tripsFromValidations/cik_final.csv";
 
 
-    public static void main(String[] args) throws FactoryException, TransformException {
+    public static void main(String[] args) {
         String inputCRS = "EPSG:4326"; // WGS84
         String outputCRS = "EPSG:32635";
         CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(inputCRS, outputCRS);
         String fileStations = "input/inputForPlans/tripsFromValidations/stops.csv";
-        String fileTrips = "input/inputForPlans/tripsFromValidations/TRIPS1.csv";
+        String fileTrips = "input/inputForPlans/tripsFromValidations/TRIPS.csv";
 
         Map stopMap = new HashMap();
         List stopList = new ArrayList<Stop>();
@@ -59,7 +57,7 @@ public class GenerateFromTrips {
         createPopulation(passengerMap, ct, stopMap, stopList);
     }
 
-    private static void createPopulation(Map<String, Passenger> passengerMap, CoordinateTransformation ct, Map stopMap, List stopList) throws FactoryException, TransformException {
+    private static void createPopulation(Map<String, Passenger> passengerMap, CoordinateTransformation ct, Map stopMap, List stopList) {
         int personsWithEmptyPlans = 0;
         int personsWithLegsOnEnd = 0;
         int removedPersonsWithAnomalyInLegNumber = 0;
@@ -70,7 +68,6 @@ public class GenerateFromTrips {
         PopulationFactory populationFactory = population.getFactory();
         Iterator iterator = passengerMap.values().iterator();
         int progress = 0;
-        Agent agent = null;
         while (iterator.hasNext()){
             progress++;
             System.out.println("Processed "+progress+" of "+passengerMap.values().size());
@@ -80,9 +77,6 @@ public class GenerateFromTrips {
             person.addPlan(plan);
             if (passenger.tripList.size() > 0){
                 population.addPerson(person);
-                agent = new Agent(person.getId().toString());
-                mapOfAllAgents.put(person.getId().toString(), agent);
-                mapOfAllAgents.get(person.getId().toString()).addPlan(plan);
             }
 
             Iterator tripIterator = passenger.tripList.iterator();
@@ -104,20 +98,15 @@ public class GenerateFromTrips {
                     activity = getActivity(scenario, populationFactory, transformedCoord, activityType, isMetro);
                     activity.setEndTime(trip.startTime);
                     plan.addActivity(activity);
-                    agent.addActivity(activity);
                     if (!isLastActivity){
                         addLegToPlan(populationFactory, plan);
                     } else if ((passenger.tripList.size() > 1) && tripIndex > 1){
-                        Activity firstActivity = (Activity) person.getPlans().get(0).getPlanElements().get(0);
-                        //Добавляем сведения о доме агентов (линк где находится и координаты)
-                        mapOfAllAgents.get(person.getId().toString()).addHome(firstActivity.getLinkId(), scenario.getNetwork().getLinks().get(firstActivity.getLinkId()).getCoord());
-                        Activity lastActivity = getActivity(scenario, populationFactory, scenario.getNetwork().getLinks().get(firstActivity.getLinkId()).getCoord(), firstActivity.getType(), false);
+                        Activity lastActivity = PopulationUtils.createActivity(PopulationUtils.getFirstActivity(plan));
 
                         lastActivity.setEndTime(25 * 3600);
                         addLegToPlan(populationFactory, plan);
 
                         plan.addActivity(lastActivity);
-                        agent.addActivity(lastActivity);
 
                     } else {
                             Stop endStop;
@@ -128,26 +117,45 @@ public class GenerateFromTrips {
                                 int randomStopIndex = randomStopIndexDouble.intValue();
                                 endStop = (Stop) stopList.get(randomStopIndex);
                             }
-                            Activity homeActivity = addHomeActivityAtEndStop(ct, populationFactory, plan, endStop, scenario);
-                            agent.addActivity(homeActivity);
+                            addHomeActivityAtEndStop(ct, populationFactory, plan, endStop, scenario);
                     }
                 }
             }
 
-
                 if (((plan.getPlanElements().size() - 1) / 2) < tripIndex){
                     population.removePerson(person.getId());
-                    mapOfAllAgents.remove(person.getId().toString());
                     removedPersonsWithAnomalyInLegNumber++;
                 }
+
         }
 
+        System.out.println("-------------------------------------------------------");
         System.out.println("Removed " + removedPersonsWithAnomalyInLegNumber + " persons with anomaly in leg number");
         System.out.println("Removed persons with empty plans: " + personsWithEmptyPlans);
         System.out.println("Removed persons with legs on end: " + personsWithLegsOnEnd);
+        System.out.println("-------------------------------------------------------");
         deleteOrFixFaultyPlans(population);
-        for(Agent agent_ : mapOfAllAgents.values()) {
-            addHomeRegistration(agent_);
+        System.out.println("-------------------------------------------------------");
+        System.out.println("Ok, so far so good! Starting to form a database of agents");
+        System.out.println("-------------------------------------------------------");
+
+        //Создаем внутреннюю базу по агентам
+        for(Person person : scenario.getPopulation().getPersons().values()) {
+            String name = person.getId().toString();
+            Agent agent = new Agent(name);
+            mapOfAllAgents.put(name, agent);
+            agent.addPlan(person.getSelectedPlan());
+            if(generateOnLinks) {
+                Id<Link> homeLinkId = PopulationUtils.getFirstActivity(person.getSelectedPlan()).getLinkId();
+                agent.addHome(homeLinkId, scenario.getNetwork().getLinks().get(homeLinkId).getCoord());
+            } else {
+                Coord homeCoord = PopulationUtils.getFirstActivity(person.getSelectedPlan()).getCoord();
+                agent.addHome(NetworkUtils.getNearestLink(scenario.getNetwork(), homeCoord).getId(), homeCoord);
+            }
+            for(Activity activity:PopulationUtils.getActivities(person.getSelectedPlan(), null)) {
+                agent.addActivity(activity);
+            }
+            addHomeRegistration(agent);
         }
 
         File outputDir = new File("output");
@@ -156,7 +164,6 @@ public class GenerateFromTrips {
         }
         PopulationWriter populationWriter = new PopulationWriter(population);
         populationWriter.writeV5("output/PopulationOnLinks.xml.gz");
-
 
         if (createAdditionalAgents){
             if(!recordWithValidationPopulation) {
@@ -191,6 +198,7 @@ public class GenerateFromTrips {
             System.out.println("-------------------------------------------------------");
             System.out.println(inc_set+" sets of created agents from " + mapOfCreatedAgentsOnLinks.size() +" were processed");
             System.out.println("HOME COORD OF SET: "+setOfCreatedAgents.stream().findFirst().get().getHomeLinkCoord());
+            System.out.println("HOME LINK OF SET: "+setOfCreatedAgents.stream().findFirst().get().getHomeLinkId());
             System.out.println("-------------------------------------------------------");
 
             List<Agent> agentsFoundNearby = searchNearbyAgents(scenario, setOfCreatedAgents.stream().findFirst().get().getHomeLinkCoord()).stream().collect(Collectors.toList());
@@ -219,10 +227,11 @@ public class GenerateFromTrips {
                     Activity intermediateActivity = PopulationUtils.createActivity(randomListOfActivities.get(i));
                     agent.addActivity(intermediateActivity);
                     plan.addActivity(intermediateActivity);
+                    //добавляем лег для промежуточных активностей
+                    plan.addLeg(randomListOfLegs.get(0));
                 }
 
-                //добавляем лег для промежуточных активностей
-                plan.addLeg(randomListOfLegs.get(0));
+
                 //создаем последнюю домашнюю активность на основе последней активности рэндомного агента
                 Activity lastActivity = PopulationUtils.createActivity(randomListOfActivities.get(randomListOfActivities.size()-1));
                 //меняем у созданной последней активности homeLinkId
@@ -272,8 +281,7 @@ public class GenerateFromTrips {
         Activity activity;
         if (generateOnLinks){
             Coord randomizedTransformedCoord = randomizeCoord(transformedCoord, isMetro);
-            Link targetLink = scenario.getNetwork().getLinks().values().stream().sorted((a, b) -> (int)  Math.abs((CoordUtils.calcEuclideanDistance(a.getCoord(), randomizedTransformedCoord) -
-                    CoordUtils.calcEuclideanDistance(b.getCoord(), randomizedTransformedCoord)))).filter(link -> link.getFreespeed() < 70 / 3.6).findFirst().get();
+            Link targetLink = scenario.getNetwork().getLinks().values().stream().sorted(Comparator.comparingDouble (a-> NetworkUtils.getEuclideanDistance(a.getCoord(), randomizedTransformedCoord))).filter(link -> link.getFreespeed() < 70 / 3.6).findFirst().get();
             activity = populationFactory.createActivityFromLinkId(activityType, targetLink.getId());
         } else {
             Coord randomizedTransformedCoord = randomizeCoord(transformedCoord, isMetro);
